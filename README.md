@@ -5,7 +5,7 @@
 An Electron-based desktop pet: a fluffy sheep (modeled after my real plush toy) that lives in the corner of your screen — feed her, bathe her, dress her up, and pet her like a cat.
 
 <p align="center">
-  <img src="assets/sheep-real-preview.png" alt="小羊本羊" width="300">
+  <img src="outfits/09-newyear.png" alt="小羊 · 过年马甲装" width="360">
 </p>
 
 ## ✨ 功能 Features
