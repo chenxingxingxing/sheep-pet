@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>小羊</title>
+<style>
+  :root {
+    --panel: rgba(255, 253, 248, .96);
+    --ink: #6b5a50;
+    --line: rgba(120, 92, 78, .16);
+  }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: transparent; overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  /* 所有内容都贴住窗口右下角，展开时向左上生长 */
+  #stage { position: absolute; inset: 0; }
+
+  /* 小羊本体 —— 平常很小，展开后变大，始终待在右下角 */
+  #pet {
+    position: absolute; right: 5px; bottom: 5px;
+    width: 56px; height: 56px;
+    -webkit-app-region: no-drag;
+    cursor: pointer;
+    transition: width .28s cubic-bezier(.34,1.4,.6,1), height .28s cubic-bezier(.34,1.4,.6,1), right .8s ease;
+    z-index: 3;
+  }
+  #stage.open #pet { right: 10px; bottom: 10px; width: 130px; height: 150px; }
+  #pet img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 6px rgba(60, 45, 36, .28));
+    animation: breathe 3.8s ease-in-out infinite;
+    transition: filter .6s;
+  }
+  @keyframes breathe {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-2px) scale(1.02); }
+  }
+  #pet.love img { animation: nuzzle .5s ease-in-out; }
+  @keyframes nuzzle {
+    0%,100% { transform: rotate(0) scale(1); }
+    30% { transform: rotate(-5deg) scale(1.05); }
+    60% { transform: rotate(4deg) scale(1.05); }
+  }
+  /* 困了：打哈欠 */
+  #pet.yawn img { animation: yawn 1s ease-in-out; }
+  @keyframes yawn {
+    0%,100% { transform: scale(1,1) rotate(0); }
+    40% { transform: scale(1.05,.94) rotate(-2deg); }
+    70% { transform: scale(1.05,.94) rotate(2deg); }
+  }
+  #pet.tired img { animation: breatheTired 5.5s ease-in-out infinite; filter: drop-shadow(0 4px 6px rgba(60,45,36,.28)) brightness(.96); }
+  @keyframes breatheTired { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(1px) scale(1.008); } }
+  /* 待机小动作 */
+  #pet.idleTilt img { animation: idleTilt 1.4s ease-in-out; }
+  @keyframes idleTilt { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-4deg); } }
+  /* 自己散步 */
+  #pet.walking img { animation: walkBob .45s ease-in-out infinite; }
+  #pet.walking.faceLeft img { animation: walkBobL .45s ease-in-out infinite; }
+  @keyframes walkBob { 0%,100% { transform: translateY(0) rotate(2deg); } 50% { transform: translateY(-4px) rotate(-2deg); } }
+  @keyframes walkBobL { 0%,100% { transform: scaleX(-1) translateY(0) rotate(2deg); } 50% { transform: scaleX(-1) translateY(-4px) rotate(-2deg); } }
+  /* 打盹 */
+  #pet.doze img { animation: sleepBreathe 3.2s ease-in-out infinite; filter: drop-shadow(0 4px 6px rgba(60,45,36,.28)) brightness(.96); }
+  #pet.doze::after { content: '💤'; position: absolute; top: -4px; right: -2px; font-size: 13px; animation: dozeZ 2.4s ease-in-out infinite; }
+  @keyframes dozeZ { 0% { opacity: 0; transform: translateY(4px) scale(.7); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(-10px) scale(1.15); } }
+  #pet.idleWiggle img { animation: idleWiggle 1s ease-in-out; }
+  @keyframes idleWiggle { 0%,20%,100% { transform: translateX(0); } 5%,15% { transform: translateX(-2px); } 10% { transform: translateX(2px); } }
+  /* —— 睡觉：真实小床 + 碎花被子 —— */
+  #bed {
+    position: absolute; left: 50%; bottom: 2px; width: 168px; aspect-ratio: 420/372;
+    transform: translateX(-50%) translateY(24px) scale(.85); opacity: 0;
+    background: url('assets/parts/acc/bed.png') center/contain no-repeat;
+    filter: drop-shadow(0 4px 8px rgba(180,100,130,.3));
+    transition: opacity .5s, transform .5s cubic-bezier(.34,1.3,.6,1);
+    pointer-events: none; z-index: 2;
+  }
+  #stage.sleeping #bed { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  #blanket {
+    position: absolute; left: 50%; bottom: -10px; width: 112px; aspect-ratio: 420/394;
+    transform: translateX(-50%) translateY(26px) rotate(-2deg); opacity: 0;
+    background: url('assets/parts/acc/bedquilt.png') center/contain no-repeat;
+    filter: drop-shadow(0 -2px 6px rgba(200,110,140,.2));
+    transition: opacity .6s .25s, transform .6s .25s cubic-bezier(.34,1.3,.6,1);
+    pointer-events: none; z-index: 4;
+  }
+  #stage.sleeping #blanket { opacity: 1; transform: translateX(-50%) translateY(0) rotate(0); animation: quiltBreathe 3.2s ease-in-out infinite .9s; }
+  @keyframes quiltBreathe {
+    0%,100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-2px); }
+  }
+  /* 睡觉时小羊窝进床里 */
+  #stage.sleeping #pet { right: 50%; transform: translateX(50%); bottom: 34px; width: 104px; height: 118px; }
+  /* 睡觉小眼罩：绣花毛绒眼罩，戴上时轻轻落下，随呼吸起伏 */
+  #eyemask {
+    position: absolute; left: 50%; top: 30%; width: 64%;
+    transform: translateX(-50%) translateY(-14px) scale(.7); opacity: 0;
+    background: url('assets/parts/acc/eyemask.png') center/contain no-repeat;
+    aspect-ratio: 360/173;
+    filter: drop-shadow(0 2px 3px rgba(190,110,140,.3));
+    transition: opacity .6s ease, transform .6s cubic-bezier(.34,1.3,.6,1);
+    pointer-events: none; z-index: 5;
+  }
+  #stage.sleeping #eyemask {
+    opacity: 1; transform: translateX(-50%) translateY(0) scale(1);
+    animation: maskBreathe 3.2s ease-in-out infinite .6s;
+  }
+  @keyframes maskBreathe {
+    0%,100% { transform: translateX(-50%) translateY(0) scale(1); }
+    50% { transform: translateX(-50%) translateY(-1.5px) scale(1.012); }
+  }
+  #stage.sleeping #pet { animation: none; }
+  #stage.sleeping #pet img { animation: sleepBreathe 3.2s ease-in-out infinite; }
+  @keyframes sleepBreathe { 0%,100% { transform: translateY(0) scale(1,1); } 50% { transform: translateY(-1.5px) scale(1.015,.99); } }
+  .zzz {
+    position: absolute; color: #a98bcf; font-weight: bold; opacity: 0; pointer-events: none; z-index: 5;
+  }
+  #stage.sleeping .zzz { animation: zzzFloat 2.4s ease-in infinite; }
+  @keyframes zzzFloat {
+    0% { opacity: 0; transform: translate(0,0) scale(.5); }
+    20% { opacity: .9; }
+    100% { opacity: 0; transform: translate(14px,-30px) scale(1.1); }
+  }
+  #pet.wake img { animation: stretch .9s ease-in-out; }
+  @keyframes stretch {
+    0%,100% { transform: scale(1,1); }
+    50% { transform: scale(1.08,.9); }
+  }
+  #stage.sleeping #stats, #stage.sleeping #panel, #stage.sleeping #quitBtn, #stage.sleeping #dressName { opacity: 0 !important; pointer-events: none !important; }
+
+  #pet.hop img { animation: hop .6s ease; }
+  @keyframes hop {
+    0%,100% { transform: translateY(0); }
+    40% { transform: translateY(-16px) scale(1.03,.97); }
+  }
+
+  /* 眼泪（饿哭时）：大颗泪珠成串往下掉 */
+  .tear {
+    position: absolute; width: 12px; height: 16px;
+    background: radial-gradient(circle at 36% 26%, #f0faff 12%, #b5ddf7 48%, #6fb7e8 82%, #58a3dc);
+    border-radius: 50% 50% 50% 50% / 64% 64% 36% 36%;
+    box-shadow: inset -1px -2px 3px rgba(40, 110, 170, .35), 0 1px 3px rgba(90, 150, 200, .4);
+    opacity: 0; pointer-events: none; z-index: 4;
+  }
+  #pet.hungry .tear { animation: cry 1.9s cubic-bezier(.5,.1,.8,.6) infinite; }
+  .tearL  { left: 27%;  top: 36%; }
+  .tearR  { right: 27%; top: 36%; animation-delay: .55s !important; }
+  .tearL2 { left: 27%;  top: 36%; animation-delay: 1s !important; }
+  .tearR2 { right: 27%; top: 36%; animation-delay: 1.45s !important; }
+  @keyframes cry {
+    0%   { opacity: 0; transform: translateY(0) scale(.4, .5); }
+    12%  { opacity: .95; transform: translateY(3px) scale(1); }
+    70%  { opacity: .95; }
+    100% { opacity: 0; transform: translateY(88px) scale(1.15, 1.3); }
+  }
+  /* 饿哭时整只羊小声抽泣 */
+  #pet.sulky img { filter: drop-shadow(0 4px 6px rgba(60,45,36,.28)) brightness(.97) saturate(.92); animation: pout 1.8s ease-in-out infinite; }
+  @keyframes pout { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(1px) rotate(-1deg); } }
+  #pet.hungry { animation: sob 2.4s ease-in-out infinite; }
+  @keyframes sob {
+    0%, 100% { transform: none; }
+    12% { transform: translateY(1.5px) rotate(-1.6deg); }
+    24% { transform: translateY(0) rotate(1.2deg); }
+    36% { transform: translateY(1px) rotate(0); }
+  }
+
+  /* 状态小圆点（缩起来时提示饿了/该洗澡了） */
+  #dot {
+    position: absolute; right: 4px; bottom: 46px;
+    width: 11px; height: 11px; border-radius: 50%;
+    border: 1.5px solid #fff; display: none; z-index: 5;
+    box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  }
+  #stage.open #dot { display: none !important; }
+
+  /* 爱心（撸的时候冒出来） */
+  .heart {
+    position: absolute; z-index: 6; font-size: 15px; pointer-events: none;
+    animation: floatUp 1s ease-out forwards;
+  }
+  @keyframes floatUp {
+    0% { opacity: 0; transform: translateY(0) scale(.4); }
+    25% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-40px) scale(1.1); }
+  }
+
+  /* 对话气泡 */
+  #bubble {
+    position: absolute; right: 10px; bottom: 236px;
+    max-width: 180px; padding: 6px 10px;
+    border: 1px solid var(--line); border-radius: 12px;
+    background: var(--panel); color: var(--ink);
+    font-size: 11.5px; line-height: 1.4;
+    box-shadow: 0 8px 22px rgba(70, 50, 40, .16);
+    opacity: 0; transform: translateY(6px); pointer-events: none;
+    transition: opacity .2s, transform .2s; z-index: 7;
+  }
+  #bubble.show { opacity: 1; transform: translateY(0); }
+
+  /* 功能面板（点击展开后才出现） */
+  #panel {
+    position: absolute; right: 10px; bottom: 132px;
+    display: flex; flex-wrap: wrap; width: 128px; justify-content: flex-end; gap: 6px; padding: 7px;
+    border: 1px solid var(--line); border-radius: 14px;
+    background: var(--panel);
+    box-shadow: 0 10px 26px rgba(70, 50, 40, .18);
+    opacity: 0; transform: translateY(10px) scale(.95);
+    transform-origin: bottom right; pointer-events: none;
+    transition: opacity .2s, transform .2s; z-index: 6;
+    -webkit-app-region: no-drag;
+  }
+  #stage.open #panel { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+  button {
+    width: 34px; height: 34px; padding: 0;
+    border: 1px solid rgba(120, 92, 78, .16); border-radius: 10px;
+    background: rgba(255,255,255,.9); font-size: 16px; cursor: pointer;
+    transition: transform .12s, background .12s;
+  }
+  button:hover { background: #fff; transform: translateY(-1px); }
+  button:active { transform: scale(.9); }
+
+  #quitBtn {
+    position: absolute; right: 10px; bottom: 132px;
+    transform: translateY(-42px);
+    width: 22px; height: 22px; font-size: 13px; border-radius: 50%;
+    opacity: 0; pointer-events: none; z-index: 8;
+  }
+  #stage.open #quitBtn { opacity: .85; pointer-events: auto; }
+
+  /* —— 出门玩：草地小场景 —— */
+  #scene {
+    position: absolute; right: 10px; bottom: 10px;
+    width: 244px; height: 190px; border-radius: 16px; overflow: hidden;
+    background: #cfe8f7;
+    box-shadow: 0 12px 30px rgba(60, 70, 45, .28);
+    opacity: 0; transform: scale(.9); transform-origin: bottom right;
+    pointer-events: none; transition: opacity .25s, transform .25s; z-index: 1;
+  }
+  #stage.out #scene { opacity: 1; transform: scale(1); pointer-events: auto; }
+  /* 厚涂手绘背景（SVG 绘制） */
+  #sceneArt { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #sceneArt .sunCore { animation: sunPulse 4s ease-in-out infinite; transform-origin: 42px 38px; }
+  @keyframes sunPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+  #sceneArt .cl { animation: drift 30s linear infinite; }
+  #sceneArt .cl.c2 { animation-duration: 44s; animation-delay: -18s; }
+  @keyframes drift { from { transform: translateX(-90px); } to { transform: translateX(300px); } }
+  /* 内圈柔光晕，像画框里的厚涂 */
+  #scene::after {
+    content: ""; position: absolute; inset: 0; border-radius: 16px; pointer-events: none;
+    box-shadow: inset 0 0 26px rgba(120, 80, 40, .18), inset 0 -8px 20px rgba(70, 110, 50, .14);
+  }
+  /* 前景草丛（随风摇摆） */
+  #scene .grass {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 40px; opacity: .95;
+    background:
+      radial-gradient(7px 18px at 8% 100%, #6fae47 60%, transparent 62%),
+      radial-gradient(6px 22px at 19% 100%, #578f38 60%, transparent 62%),
+      radial-gradient(7px 15px at 31% 100%, #6fae47 60%, transparent 62%),
+      radial-gradient(6px 24px at 47% 100%, #578f38 60%, transparent 62%),
+      radial-gradient(7px 17px at 62% 100%, #6fae47 60%, transparent 62%),
+      radial-gradient(6px 21px at 77% 100%, #578f38 60%, transparent 62%),
+      radial-gradient(7px 16px at 91% 100%, #6fae47 60%, transparent 62%);
+    transform-origin: bottom center; animation: sway 2.8s ease-in-out infinite;
+  }
+  @keyframes sway { 0%,100% { transform: skewX(-4deg); } 50% { transform: skewX(4deg); } }
+  /* 真实场景装饰 */
+  #scene .sceneItem { position: absolute; pointer-events: none; filter: drop-shadow(0 2px 3px rgba(60,70,45,.22)); }
+  #scene .house { right: 4px; top: 30px; width: 92px; z-index: 2; }
+  #scene .bush { left: 4px; top: 96px; width: 46px; z-index: 2; }
+  #scene .mailbox { right: 8px; top: 96px; width: 30px; z-index: 3; }
+  #scene .fence { left: 40px; top: 118px; width: 60px; opacity: .95; z-index: 1; }
+  #scene .stones { left: 96px; top: 138px; width: 60px; opacity: .9; z-index: 1; }
+  #scene .flowers { width: 26px; bottom: 30px; z-index: 3; }
+  #scene .f-a { left: 16px; } #scene .f-b { right: 40px; bottom: 36px; width: 22px; }
+  /* 蝴蝶 */
+  #scene .bfly { width: 22px; animation: flutter 7s ease-in-out infinite; z-index: 4; }
+  #scene .bfly.b1 { top: 60px; left: 30px; }
+  #scene .bfly.b2 { top: 96px; left: 120px; animation-duration: 9s; animation-delay: 1.5s; }
+  @keyframes flutter {
+    0%   { transform: translate(0,0) rotate(0); }
+    25%  { transform: translate(60px,-24px) rotate(10deg); }
+    50%  { transform: translate(120px,6px) rotate(-8deg); }
+    75%  { transform: translate(60px,26px) rotate(6deg); }
+    100% { transform: translate(0,0) rotate(0); }
+  }
+  /* 秋千：木架不动，座椅荡来荡去 */
+  #scene .swing { position: absolute; left: 150px; top: 18px; transform-origin: 32px 0; animation: swingMove 3.2s ease-in-out infinite; }
+  @keyframes swingMove { 0%,100% { transform: rotate(-15deg); } 50% { transform: rotate(15deg); } }
+  /* 小狗、小猫路过打招呼 */
+  #scene .visitor { position: absolute; bottom: 30px; font-size: 17px; opacity: 0; animation: visit 16s ease-in-out infinite; }
+  #scene .dog { left: -30px; animation-delay: 2s; }
+  #scene .cat { left: -30px; animation-delay: 9.5s; }
+  @keyframes visit {
+    0%, 82%, 100% { opacity: 0; transform: translateX(0); }
+    8%  { opacity: 1; transform: translateX(70px); }
+    22% { opacity: 1; transform: translateX(96px) rotate(-8deg); }
+    36% { opacity: 1; transform: translateX(96px) rotate(8deg); }
+    50% { opacity: 1; transform: translateX(96px) rotate(-8deg); }
+    64% { opacity: 1; transform: translateX(160px); }
+  }
+  /* 远处温馨小家 */
+  #scene .house { position: absolute; right: 14px; top: 62px; opacity: .92; }
+  #scene .house .win { animation: winGlow 3.6s ease-in-out infinite; }
+  @keyframes winGlow { 0%,100% { opacity: .75; } 50% { opacity: 1; } }
+  /* 夕阳：进门 5 秒后渐变为黄昏，持续可赏 */
+  #scene .sunsetLayer {
+    position: absolute; inset: 0; opacity: 0; pointer-events: none;
+    background: linear-gradient(180deg, #ffb37a 0%, #ff9d6e 30%, #ffcf8f 55%, #f6a5a0 75%, #6c8f56 100%);
+    transition: opacity 2.6s ease;
+  }
+  #scene.sunset .sunsetLayer { opacity: .88; }
+  #scene.sunset .sunCore circle:first-child { fill: #ff8f5e; }
+  #scene.sunset .sunCore circle:last-child { fill: #ffcf9c; }
+  #scene.sunset .sunGlow { opacity: .8 !important; }
+  /* 雪景（穿厚衣服出门时） */
+  #scene.snow .sceneDay { display: none; }
+  #scene .snowLayer { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+  #scene.snow .snowLayer { opacity: 1; }
+  .flake {
+    position: absolute; top: -10px; color: #fff; font-size: 10px; opacity: 0;
+    animation: flakeFall linear infinite;
+  }
+  @keyframes flakeFall { 0% { opacity: 0; transform: translateY(0) translateX(0); } 10% { opacity: .95; } 100% { opacity: .3; transform: translateY(196px) translateX(14px); } }
+  #scene.snow #pet img { animation: shiver .28s ease-in-out infinite, hopLoop 1s ease-in-out infinite; }
+  @keyframes shiver { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-1.6px); } 75% { transform: translateX(1.6px); } }
+  #scene .teacup {
+    position: absolute; right: 84px; bottom: 36px; font-size: 17px; opacity: 0;
+    transition: opacity .4s, right .8s ease; z-index: 6; pointer-events: none;
+    transform: rotate(-8deg);
+  }
+  #scene.snow .teacup { opacity: 1; animation: teaWobble 2.4s ease-in-out infinite; }
+  @keyframes teaWobble { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-3px) rotate(4deg); } }
+  #homeBtn {
+    position: absolute; right: 16px; top: 14px; width: 24px; height: 24px;
+    font-size: 13px; border-radius: 50%; opacity: 0; pointer-events: none; z-index: 8;
+  }
+  #stage.out #homeBtn { opacity: .92; pointer-events: auto; }
+  /* 出门/洗澡时小羊站到场景中间；隐藏血条/面板 */
+  #stage.out #pet, #stage.bath #pet { right: 74px; bottom: 30px; width: 96px; height: 108px; }
+  #stage.out #pet img { animation: hopLoop 1s ease-in-out infinite; }
+  @keyframes hopLoop {
+    0%,100% { transform: translateY(0) scale(1,1); }
+    30% { transform: translateY(-20px) scale(.98,1.02); }
+    55% { transform: translateY(0) scale(1.04,.96); }
+  }
+  #stage.out #stats, #stage.out #panel, #stage.out #quitBtn, #stage.out #dressName,
+  #stage.bath #stats, #stage.bath #panel, #stage.bath #quitBtn, #stage.bath #dressName { opacity: 0 !important; pointer-events: none !important; }
+
+  /* 真实天气大图背景 */
+  #sceneBg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+  /* 猫狗好朋友（真实图） */
+  #scene .friend { position: absolute; bottom: 10px; z-index: 2; }
+  #scene .friend.dog { left: 4px; width: 58px; animation: friendBob 2.6s ease-in-out infinite; image-rendering: auto; }
+  #scene .friend.cat { left: auto; right: 4px; width: 52px; animation: friendBob 2.6s ease-in-out infinite .8s; }
+  @keyframes friendBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  /* 雨天打伞 */
+  #scene .umbrella { position: absolute; right: 86px; bottom: 62px; height: 146px; width: auto; display: none; opacity: 0; transition: opacity .3s, right .8s ease; z-index: 6; pointer-events: none; filter: drop-shadow(0 2px 3px rgba(80,100,140,.3)); }
+  #scene.rain .umbrella { display: block; opacity: 1; animation: umbrellaSway 3s ease-in-out infinite; }
+  @keyframes umbrellaSway { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+  /* 大风：树叶花瓣横飞 */
+  .windLayer { position: absolute; inset: 0; display: none; pointer-events: none; z-index: 4; overflow: hidden; }
+  #scene.wind .windLayer { display: block; }
+  .leaf { position: absolute; left: -26px; font-size: 15px; opacity: 0; }
+  #scene.wind .leaf { animation-name: leafDrift; animation-timing-function: linear; animation-iteration-count: infinite; }
+  @keyframes leafDrift {
+    0%   { transform: translateX(0) translateY(0) rotate(0deg); opacity: 0; }
+    8%   { opacity: 1; }
+    100% { transform: translateX(320px) translateY(26px) rotate(320deg); opacity: .15; }
+  }
+  /* 大风时小羊被吹得微微摇晃 */
+  #scene.wind ~ #pet, #stage.out.windy #pet { animation: windLean 1.5s ease-in-out infinite; }
+  @keyframes windLean { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(-4deg); } }
+  #scene .rainLayer { position: absolute; inset: 0; display: none; pointer-events: none; z-index: 4; }
+  #scene.rain .rainLayer { display: block; }
+  #scene:not(.snow) .snowLayer { display: none; }
+  .rain { position: absolute; top: -14px; width: 2px; height: 15px; background: linear-gradient(rgba(255,255,255,.1), rgba(180,210,240,.85)); border-radius: 2px; }
+  #scene.rain .rain { animation: rainFall 1.1s linear infinite; }
+  @keyframes rainFall { from { transform: translateY(0); } to { transform: translateY(210px); } }
+  #tempTag { position: absolute; right: 10px; top: 46px; z-index: 8; font: 600 11px -apple-system, sans-serif; color: #fff; background: rgba(80,90,120,.55); padding: 2px 8px; border-radius: 9px; opacity: 0; pointer-events: none; }
+  #stage.out #tempTag { opacity: .95; }
+  #tempTag:empty { display: none; }
+  #weatherBtn { position: absolute; left: 12px; top: 12px; width: 26px; height: 26px; font-size: 14px; border-radius: 50%; opacity: 0; pointer-events: none; z-index: 8; }
+  #stage.out #weatherBtn { opacity: .92; pointer-events: auto; }
+  #hatBtn { position: absolute; left: 12px; top: 44px; width: 26px; height: 26px; font-size: 14px; border-radius: 50%; opacity: 0; pointer-events: none; z-index: 8; }
+  #stage.out #hatBtn { opacity: .92; pointer-events: auto; }
+  /* 猫耳毛线帽：戴上时从上方落下扣住羊角 */
+  #pet #hat {
+    position: absolute; inset: auto; left: 22%; top: 10%;
+    width: 58%; height: auto;
+    transform: translateX(-50%) translateY(-16px) scale(.7); opacity: 0;
+    filter: drop-shadow(0 2px 3px rgba(90,120,170,.3));
+    animation: none;
+    transition: opacity .45s, transform .45s cubic-bezier(.34,1.4,.6,1);
+    pointer-events: none; z-index: 6;
+  }
+  #pet.hasHat #hat { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+
+  #bathScene #bathArt { display: block; }
+  /* 粉色浴缸：洗澡时小羊泡在里面 */
+  #tub {
+    position: absolute; right: 44px; bottom: 12px; width: 156px;
+    filter: drop-shadow(0 4px 7px rgba(150,90,110,.3));
+    z-index: 5; pointer-events: none;
+  }
+  /* 洗澡时小羊位置对准浴缸 */
+  #stage.bath #pet { right: 74px; bottom: 52px; }
+  /* 吹风机显示在浴缸之上 */
+  #bathScene #dryer { z-index: 7; }
+  /* —— 洗澡：浴室场景 —— */
+  #bathScene {
+    position: absolute; right: 10px; bottom: 10px;
+    width: 244px; height: 190px; border-radius: 16px; overflow: hidden;
+    background: #fbe4ee;
+    box-shadow: 0 12px 30px rgba(110, 60, 80, .26);
+    opacity: 0; transform: scale(.9); transform-origin: bottom right;
+    pointer-events: none; transition: opacity .25s, transform .25s; z-index: 1;
+  }
+  #stage.bath #bathScene { opacity: 1; transform: scale(1); pointer-events: auto; }
+  #bathArt { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #bathScene::after {
+    content: ""; position: absolute; inset: 0; border-radius: 16px; pointer-events: none;
+    box-shadow: inset 0 0 26px rgba(150, 80, 100, .15);
+  }
+  /* 花洒水柱（洗澡阶段） */
+  #bathScene .drop {
+    position: absolute; top: 46px; width: 4.5px; height: 11px;
+    border-radius: 40% 40% 60% 60% / 30% 30% 70% 70%;
+    background: linear-gradient(#e8f6ff, #8fc9ee); opacity: 0;
+  }
+  #stage.bshower .drop { animation: dropFall .62s linear infinite; }
+  #bathScene .d1 { left: 110px; } #bathScene .d2 { left: 121px; animation-delay: .18s !important; }
+  #bathScene .d3 { left: 132px; animation-delay: .34s !important; } #bathScene .d4 { left: 143px; animation-delay: .1s !important; }
+  #bathScene .d5 { left: 154px; animation-delay: .26s !important; } #bathScene .d6 { left: 126px; animation-delay: .48s !important; }
+  @keyframes dropFall {
+    0% { opacity: 0; transform: translateY(0); }
+    15% { opacity: .95; }
+    100% { opacity: .15; transform: translateY(74px); }
+  }
+  /* 泡泡（洗澡+甩水阶段） */
+  #bathScene .bub {
+    position: absolute; bottom: 34px; border-radius: 50%; opacity: 0;
+    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.95), rgba(190,225,250,.55) 60%, rgba(150,200,240,.3));
+    border: 1px solid rgba(255,255,255,.75);
+  }
+  #stage.bshower .bub, #stage.bbubble .bub, #stage.bshake .bub { animation: bubRise 2.6s ease-in infinite; }
+  #bathScene .u1 { left: 66px;  width: 14px; height: 14px; }
+  #bathScene .u2 { left: 92px;  width: 9px;  height: 9px;  animation-delay: .5s !important; }
+  #bathScene .u3 { left: 120px; width: 16px; height: 16px; animation-delay: 1.1s !important; }
+  #bathScene .u4 { left: 150px; width: 10px; height: 10px; animation-delay: .3s !important; }
+  #bathScene .u5 { left: 176px; width: 13px; height: 13px; animation-delay: .9s !important; }
+  #bathScene .u6 { left: 198px; width: 8px;  height: 8px;  animation-delay: 1.5s !important; }
+  #bathScene .u7 { left: 104px; width: 11px; height: 11px; animation-delay: 1.9s !important; }
+  #bathScene .u8 { left: 162px; width: 15px; height: 15px; animation-delay: 2.2s !important; }
+  @keyframes bubRise {
+    0% { opacity: 0; transform: translateY(0) scale(.55); }
+    18% { opacity: .95; }
+    100% { opacity: 0; transform: translateY(-118px) scale(1.2); }
+  }
+  /* 身上的泡沫（洗澡+甩水时盖在羊毛上） */
+  #stage.bshower #pet::after, #stage.bbubble #pet::after, #stage.bshake #pet::after {
+    content: ""; position: absolute; left: 4%; right: 4%; top: 2%; height: 52%;
+    pointer-events: none; opacity: .95; filter: blur(.4px);
+    background:
+      radial-gradient(16px 13px at 22% 46%, #fff 60%, transparent 63%),
+      radial-gradient(20px 15px at 48% 30%, #fff 60%, transparent 63%),
+      radial-gradient(15px 12px at 74% 46%, #fff 60%, transparent 63%),
+      radial-gradient(12px 10px at 34% 66%, #f4fbff 60%, transparent 63%),
+      radial-gradient(13px 11px at 62% 68%, #f4fbff 60%, transparent 63%),
+      radial-gradient(9px 8px at 86% 62%, #fff 60%, transparent 63%);
+  }
+  /* 甩水（狗狗式左右甩 + 水花四溅） */
+  #stage.bshake #pet img { animation: shakeOff .4s linear infinite; }
+  @keyframes shakeOff {
+    0%, 100% { transform: rotate(0); }
+    25% { transform: rotate(-10deg) translateX(-2px); }
+    75% { transform: rotate(10deg) translateX(2px); }
+  }
+  #bathScene .fling {
+    position: absolute; left: 130px; bottom: 86px;
+    width: 5.5px; height: 5.5px; border-radius: 50%;
+    background: #a5d4f2; opacity: 0;
+  }
+  #stage.bshake .fling { animation: flingOut .55s ease-out infinite; }
+  #bathScene .g1 { --dx: -52px; --dy: -30px; }
+  #bathScene .g2 { --dx: 54px;  --dy: -24px; animation-delay: .1s !important; }
+  #bathScene .g3 { --dx: -60px; --dy: 6px;   animation-delay: .2s !important; }
+  #bathScene .g4 { --dx: 58px;  --dy: 12px;  animation-delay: .28s !important; }
+  #bathScene .g5 { --dx: -34px; --dy: -48px; animation-delay: .16s !important; }
+  #bathScene .g6 { --dx: 38px;  --dy: -46px; animation-delay: .06s !important; }
+  @keyframes flingOut {
+    0% { opacity: .95; transform: translate(0, 0) scale(1); }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.7); }
+  }
+  /* 大吹风机（吹干阶段） */
+  #bathScene #dryer {
+    position: absolute; left: 14px; bottom: 58px; width: 58px; height: 48px;
+    opacity: 0; transform: scale(.7); transition: opacity .25s, transform .25s;
+  }
+  #stage.bdry #dryer { opacity: 1; transform: scale(1); animation: dryerWob 1.1s ease-in-out infinite; }
+  @keyframes dryerWob { 0%,100% { transform: rotate(-4deg); } 50% { transform: rotate(5deg); } }
+  #bathScene .wind {
+    position: absolute; left: 72px; height: 3.5px; border-radius: 2px; opacity: 0;
+    background: linear-gradient(90deg, rgba(180,220,250,0), #b9dcf5 35%, rgba(190,225,250,0));
+  }
+  #stage.bdry .wind { animation: windMove .6s linear infinite; }
+  #bathScene .w1 { bottom: 100px; width: 48px; }
+  #bathScene .w2 { bottom: 88px;  width: 60px; animation-delay: .2s !important; }
+  #bathScene .w3 { bottom: 76px;  width: 42px; animation-delay: .4s !important; }
+  @keyframes windMove {
+    0% { opacity: 0; transform: translateX(0); }
+    25% { opacity: .95; }
+    100% { opacity: 0; transform: translateX(52px); }
+  }
+  #stage.bdry #pet img { animation: windBlow .5s ease-in-out infinite; }
+  @keyframes windBlow {
+    0%, 100% { transform: skewX(0); }
+    50% { transform: skewX(-3.5deg) translateX(3px); }
+  }
+  /* 洗完澡：毛毛蓬蓬发光 */
+  #pet.fluffy { animation: fluffPulse 2.6s ease-in-out infinite; }
+  @keyframes fluffPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+
+  /* 状态条（血条）：展开时显示饱食度 / 清洁度 */
+  #stats {
+    position: absolute; right: 10px; bottom: 186px;
+    width: 150px; padding: 8px 9px;
+    border: 1px solid var(--line); border-radius: 12px;
+    background: var(--panel);
+    box-shadow: 0 8px 22px rgba(70, 50, 40, .16);
+    opacity: 0; transform: translateY(8px); pointer-events: none;
+    transition: opacity .2s, transform .2s; z-index: 6;
+  }
+  #stage.open #stats { opacity: 1; transform: translateY(0); }
+  .stat { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--ink); }
+  .stat + .stat { margin-top: 6px; }
+  .stat .ico { width: 14px; text-align: center; }
+  .bar { flex: 1; height: 7px; border-radius: 4px; background: rgba(120,92,78,.14); overflow: hidden; }
+  .bar > span { display: block; height: 100%; width: 100%; border-radius: 4px; transition: width .4s, background .4s; }
+  .stat .pct { width: 26px; text-align: right; color: #9a897d; font-variant-numeric: tabular-nums; }
+
+  #dressName {
+    position: absolute; right: 10px; bottom: 6px;
+    padding: 2px 8px; border-radius: 999px;
+    background: rgba(255,255,255,.85); color: #7a685d;
+    font-size: 9.5px; opacity: 0; pointer-events: none; z-index: 4;
+  }
+  #stage.open #dressName { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="scene">
+    <img id="sceneBg" src="assets/parts/scenes/day.png" alt="">
+    <div class="sunsetLayer"></div>
+    <img class="friend dog" src="assets/parts/friends/dog.png" alt="">
+    <img class="friend cat" src="assets/parts/friends/cat.png" alt="">
+    <img class="umbrella" src="assets/parts/acc/umbrella.png" alt="">
+    <span id="tempTag"></span>
+    <div class="windLayer">
+      <span class="leaf" style="top:16%; animation-duration:3.4s;">🍃</span>
+      <span class="leaf" style="top:34%; animation-duration:2.7s; animation-delay:.5s;">🌸</span>
+      <span class="leaf" style="top:52%; animation-duration:3.9s; animation-delay:1s;">🍃</span>
+      <span class="leaf" style="top:26%; animation-duration:3.1s; animation-delay:1.6s;">🌸</span>
+      <span class="leaf" style="top:64%; animation-duration:2.5s; animation-delay:.2s;">🍃</span>
+    </div>
+    <div class="rainLayer">
+      <span class="rain" style="left:8%;animation-delay:0s"></span>
+      <span class="rain" style="left:20%;animation-delay:.3s"></span>
+      <span class="rain" style="left:32%;animation-delay:.1s"></span>
+      <span class="rain" style="left:46%;animation-delay:.45s"></span>
+      <span class="rain" style="left:58%;animation-delay:.2s"></span>
+      <span class="rain" style="left:70%;animation-delay:.5s"></span>
+      <span class="rain" style="left:82%;animation-delay:.15s"></span>
+      <span class="rain" style="left:92%;animation-delay:.38s"></span>
+    </div>
+    <div class="snowLayer">
+      <span class="flake" style="left:12%; animation-duration:3.2s;">❄</span>
+      <span class="flake" style="left:26%; animation-duration:2.6s; animation-delay:.4s;">❄</span>
+      <span class="flake" style="left:40%; animation-duration:3.6s; animation-delay:.9s;">❅</span>
+      <span class="flake" style="left:54%; animation-duration:2.8s; animation-delay:.2s;">❄</span>
+      <span class="flake" style="left:68%; animation-duration:3.4s; animation-delay:1.2s;">❅</span>
+      <span class="flake" style="left:80%; animation-duration:3s;   animation-delay:.6s;">❄</span>
+      <span class="flake" style="left:92%; animation-duration:3.8s; animation-delay:1.5s;">❄</span>
+    </div>
+    <div class="teacup">🧋</div>
+    <button id="weatherBtn" title="切换天气">☀️</button>
+    <button id="hatBtn" title="戴帽子">🧢</button>
+  </div>
+  <div id="bathScene">
+    <svg id="bathArt" viewBox="0 0 244 190" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <rect width="244" height="144" fill="#fbe4ee"/>
+      <g stroke="#f3cbdd" stroke-width="1.4">
+        <path d="M0,30 H244"/><path d="M0,60 H244"/><path d="M0,90 H244"/><path d="M0,120 H244"/>
+        <path d="M40,0 V30"/><path d="M120,0 V30"/><path d="M200,0 V30"/>
+        <path d="M80,30 V60"/><path d="M160,30 V60"/><path d="M240,30 V60"/>
+        <path d="M40,60 V90"/><path d="M120,60 V90"/><path d="M200,60 V90"/>
+        <path d="M80,90 V120"/><path d="M160,90 V120"/>
+      </g>
+      <rect y="138" width="244" height="8" rx="3" fill="#eed3c0"/>
+      <rect y="144" width="244" height="46" fill="#f7ead9"/>
+      <ellipse cx="132" cy="176" rx="60" ry="11" fill="#ffffff" opacity=".85"/>
+      <rect x="128" y="0" width="6" height="24" rx="3" fill="#f2a9c4"/>
+      <path d="M104,24 h54 v12 a4,4 0 0 1 -4,4 h-46 a4,4 0 0 1 -4,-4 z" fill="#f78fb5"/>
+      <rect x="104" y="24" width="54" height="7" rx="3.5" fill="#fbc4d8"/>
+      <g fill="#e0759f">
+        <circle cx="112" cy="43" r="1.7"/><circle cx="122" cy="43" r="1.7"/><circle cx="132" cy="43" r="1.7"/>
+        <circle cx="142" cy="43" r="1.7"/><circle cx="152" cy="43" r="1.7"/>
+      </g>
+      <rect x="204" y="66" width="28" height="6" rx="3" fill="#d9b48e"/>
+      <rect x="208" y="70" width="20" height="32" rx="5" fill="#bfe0f2"/>
+      <rect x="208" y="82" width="20" height="3" fill="#a8cfe6"/>
+      <text x="20" y="182" font-size="15">🦆</text>
+      <ellipse cx="196" cy="26" rx="20" ry="8" fill="#ffffff" opacity=".38"/>
+      <ellipse cx="212" cy="40" rx="14" ry="6" fill="#ffffff" opacity=".28"/>
+    </svg>
+    <div class="drop d1"></div><div class="drop d2"></div><div class="drop d3"></div>
+    <div class="drop d4"></div><div class="drop d5"></div><div class="drop d6"></div>
+    <div class="bub u1"></div><div class="bub u2"></div><div class="bub u3"></div><div class="bub u4"></div>
+    <div class="bub u5"></div><div class="bub u6"></div><div class="bub u7"></div><div class="bub u8"></div>
+    <div class="fling g1"></div><div class="fling g2"></div><div class="fling g3"></div>
+    <div class="fling g4"></div><div class="fling g5"></div><div class="fling g6"></div>
+    <img id="tub" src="assets/parts/acc/tub.png" alt="">
+    <div id="dryer">
+      <svg viewBox="0 0 58 48" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="8" width="36" height="24" rx="12" fill="#f78fb5"/>
+        <rect x="36" y="14" width="18" height="12" rx="4" fill="#fbc4d8"/>
+        <rect x="13" y="28" width="11" height="18" rx="5" fill="#e97fae" transform="rotate(14 18 37)"/>
+        <circle cx="15" cy="20" r="6.5" fill="#fde3ee"/>
+        <circle cx="15" cy="20" r="3.6" fill="#f2a9c4"/>
+        <circle cx="29" cy="12" r="2" fill="#ffffff"/>
+      </svg>
+    </div>
+    <div class="wind w1"></div><div class="wind w2"></div><div class="wind w3"></div>
+  </div>
+  <button id="homeBtn" title="回家">🏠</button>
+  <div id="pet" title="小羊">
+    <img id="petImg" src="assets/sheep-real.png" alt="小羊">
+    <div class="tear tearL"></div>
+    <div class="tear tearR"></div>
+    <div class="tear tearL2"></div>
+    <div class="tear tearR2"></div>
+    <div id="eyemask"></div>
+    <img id="hat" src="assets/parts/acc/hat.png" alt="">
+  </div>
+  <div id="bed"></div>
+  <div id="blanket"></div>
+  <span class="zzz" style="left:58%; bottom:56px; font-size:16px;">z</span>
+  <span class="zzz" style="left:66%; bottom:66px; font-size:20px; animation-delay:.6s;">Z</span>
+  <span class="zzz" style="left:74%; bottom:78px; font-size:24px; animation-delay:1.2s;">Z</span>
+  <div id="dot"></div>
+  <div id="bubble"></div>
+  <div id="stats">
+    <div class="stat"><span class="ico">🍎</span><div class="bar"><span id="barFood"></span></div><span class="pct" id="pctFood">100</span></div>
+    <div class="stat"><span class="ico">🫧</span><div class="bar"><span id="barBath"></span></div><span class="pct" id="pctBath">100</span></div>
+    <div class="stat"><span class="ico">⚡</span><div class="bar"><span id="barEnergy"></span></div><span class="pct" id="pctEnergy">100</span></div>
+    <div class="stat"><span class="ico">😊</span><div class="bar"><span id="barMood"></span></div><span class="pct" id="pctMood">100</span></div>
+  </div>
+  <button id="quitBtn" title="退出">×</button>
+  <div id="dressName"></div>
+  <div id="panel">
+    <button id="feed" title="喂食">🍎</button>
+    <button id="bathBtn" title="洗澡">🫧</button>
+    <button id="out" title="出门玩">🌿</button>
+    <button id="dress" title="换装">👗</button>
+    <button id="rub" title="撸撸">🖐️</button>
+    <button id="sleepBtn" title="睡觉">😴</button>
+  </div>
+</div>
+<script src="renderer.js"></script>
+</body>
+</html>
